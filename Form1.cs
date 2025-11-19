@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -8,6 +8,7 @@ using Commons.Media.PortAudio;
 using System.Diagnostics;
 using System.IO;
 using System.Globalization;
+// Tomlyn is used instead of deprecated Nett library for TOML parsing (migrated in v0.35)
 using Tomlyn;
 using System.Runtime.InteropServices;
 
@@ -24,12 +25,60 @@ namespace FlexASIOGUI
         private readonly string flexasioVersion = "1.9";
         private readonly string tomlName = "FlexASIO.toml";
         private readonly string docUrl = "https://github.com/dechamps/FlexASIO/blob/master/CONFIGURATION.md";
+        // Tomlyn library options for TOML serialization/deserialization
         TomlModelOptions tomlModelOptions = new();
 
         [DllImport(@"C:\Program Files\FlexASIO\x64\FlexASIO.dll")]
         public static extern int Initialize(string PathName, bool TestMode);
         [DllImport(@"kernel32.dll")]
         public static extern uint GetACP();
+
+        // Direct PortAudio P/Invoke declarations for UTF-8 string handling
+        [DllImport("portaudio_x64.dll")]
+        private static extern IntPtr Pa_GetDeviceInfo(int device);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PaDeviceInfo
+        {
+            public int structVersion;
+            public IntPtr name;  // const char* - UTF-8 string
+            public int hostApi;
+            public int maxInputChannels;
+            public int maxOutputChannels;
+            public double defaultLowInputLatency;
+            public double defaultLowOutputLatency;
+            public double defaultHighInputLatency;
+            public double defaultHighOutputLatency;
+            public double defaultSampleRate;
+        }
+
+        // Helper method to safely get device name as UTF-8
+        private static string GetDeviceNameUTF8(int deviceIndex)
+        {
+            try
+            {
+                IntPtr deviceInfoPtr = Pa_GetDeviceInfo(deviceIndex);
+                if (deviceInfoPtr == IntPtr.Zero)
+                    return string.Empty;
+
+                PaDeviceInfo deviceInfo = Marshal.PtrToStructure<PaDeviceInfo>(deviceInfoPtr);
+                if (deviceInfo.name == IntPtr.Zero)
+                    return string.Empty;
+
+                // Read the string as UTF-8
+                int length = 0;
+                while (Marshal.ReadByte(deviceInfo.name, length) != 0)
+                    length++;
+
+                byte[] buffer = new byte[length];
+                Marshal.Copy(deviceInfo.name, buffer, 0, length);
+                return Encoding.UTF8.GetString(buffer);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
 
         public Form1()
         {
@@ -51,6 +100,7 @@ namespace FlexASIOGUI
 
             TOMLPath = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}\\{tomlName}";
             
+            // Keep C# property names as-is when serializing/deserializing TOML (no case conversion)
             tomlModelOptions.ConvertPropertyName = (string name) => name;
             this.LoadFlexASIOConfig(TOMLPath);
 
@@ -142,18 +192,27 @@ namespace FlexASIOGUI
                 if (apiInfo.name != Backend) 
                     continue;
 
+                // Use direct P/Invoke to get UTF-8 device name
+                string deviceName = GetDeviceNameUTF8(i);
+                
+                // Fallback to the old method if P/Invoke fails
+                if (string.IsNullOrEmpty(deviceName))
+                {
+                    deviceName = DescrambleUTF8(deviceInfo.name);
+                }
+
                 if (Input == true)
                 {
                     if (deviceInfo.maxInputChannels > 0)
                     {
-                        treeNodes.Add(new TreeNode(DescrambleUTF8(deviceInfo.name)));
+                        treeNodes.Add(new TreeNode(deviceName));
                     }
                 }
                 else
                 {
                     if (deviceInfo.maxOutputChannels > 0)
                     {
-                        treeNodes.Add(new TreeNode(DescrambleUTF8(deviceInfo.name)));
+                        treeNodes.Add(new TreeNode(deviceName));
                     }
                 }
             }
