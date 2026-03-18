@@ -2,6 +2,7 @@
 obj
 bin
 installer/Output
+publish
 
 # Visual Studio user settings / caches
 *.user
