@@ -90,6 +90,4 @@ jobs:
           allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
-          artifacts: |
-            installer/Output/*.exe
-            publish/x64/**/*
+          artifacts: "installer/Output/*.exe,publish/x64/**/*"
