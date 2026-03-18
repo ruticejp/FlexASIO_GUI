@@ -15,7 +15,7 @@ This document summarizes the key changes and maintenance actions performed by Ru
 - Configured `.csproj` to prevent `.pdb` generation in Release builds.
 - Cleaned up `bin` directory and rebuilt both Debug and Release outputs.
 
-## 2026-03-18
+## 2026-03-18 (single-instance-mutex)
 
 - Added a single-instance guard using a local mutex to prevent multiple GUI windows from running simultaneously.
 - When a second launch is attempted, the existing window is restored and brought to the foreground.
@@ -24,7 +24,7 @@ This document summarizes the key changes and maintenance actions performed by Ru
 
 ---
 
-## 2026-03-18
+## 2026-03-18 (upgrade-dotnet10)
 
 > This project is a continuation fork of the original `dechamps/FlexASIO_GUI` repository. The original author is credited and respected; this fork exists to enable ongoing maintenance and improvements when upstream changes were not merged.
 
