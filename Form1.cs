@@ -184,12 +184,101 @@ namespace FlexASIOGUI
             if (proc == IntPtr.Zero)
             {
                 int win32 = Marshal.GetLastWin32Error();
-                error = $"FlexASIO.dll does not export Initialize (GetProcAddress failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}).";
+                var exports = GetExportedNames(dllPathTried, 20);
+                error = $"FlexASIO.dll does not export Initialize (GetProcAddress failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}). " +
+                        $"Exports: {string.Join(", ", exports)}";
                 return false;
             }
 
             initializeFunc = Marshal.GetDelegateForFunctionPointer<InitializeDelegate>(proc);
             return true;
+        }
+
+        private static string[] GetExportedNames(string dllPath, int maxNames)
+        {
+            try
+            {
+                using var stream = File.OpenRead(dllPath);
+                using var peReader = new System.Reflection.PortableExecutable.PEReader(stream);
+                var headers = peReader.PEHeaders;
+                var exportDir = headers.PEHeader.ExportTableDirectory;
+                if (exportDir.RelativeVirtualAddress == 0)
+                    return Array.Empty<string>();
+
+                uint exportDirOffset = RvaToOffset(headers, (uint)exportDir.RelativeVirtualAddress);
+                stream.Seek(exportDirOffset, SeekOrigin.Begin);
+                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+
+                reader.ReadUInt32(); // Characteristics
+                reader.ReadUInt32(); // TimeDateStamp
+                reader.ReadUInt16(); // MajorVersion
+                reader.ReadUInt16(); // MinorVersion
+                uint nameRva = reader.ReadUInt32();
+                uint ordinalBase = reader.ReadUInt32();
+                uint numberOfFunctions = reader.ReadUInt32();
+                uint numberOfNames = reader.ReadUInt32();
+                uint addressOfFunctionsRva = reader.ReadUInt32();
+                uint addressOfNamesRva = reader.ReadUInt32();
+                uint addressOfNameOrdinalsRva = reader.ReadUInt32();
+
+                var names = new List<string>();
+                int toRead = (int)Math.Min((long)numberOfNames, (long)maxNames);
+                for (int i = 0; i < toRead; i++)
+                {
+                    uint nameRvaEntry = ReadUInt32AtRva(reader, headers, addressOfNamesRva + (uint)(i * 4));
+                    string exportName = ReadNullTerminatedStringAtRva(stream, headers, nameRvaEntry);
+                    if (!string.IsNullOrEmpty(exportName))
+                        names.Add(exportName);
+                }
+
+                return names.ToArray();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        }
+
+        private static uint RvaToOffset(System.Reflection.PortableExecutable.PEHeaders headers, uint rva)
+        {
+            foreach (var section in headers.SectionHeaders)
+            {
+                uint sectionRva = (uint)section.VirtualAddress;
+                uint sectionRaw = (uint)section.PointerToRawData;
+                uint sectionSize = (uint)Math.Max((long)section.VirtualSize, (long)section.SizeOfRawData);
+                if (rva >= sectionRva && rva < sectionRva + sectionSize)
+                {
+                    return sectionRaw + (rva - sectionRva);
+                }
+            }
+            return 0;
+        }
+
+        private static uint ReadUInt32AtRva(BinaryReader reader, System.Reflection.PortableExecutable.PEHeaders headers, uint rva)
+        {
+            long pos = reader.BaseStream.Position;
+            uint offset = RvaToOffset(headers, rva);
+            reader.BaseStream.Seek((long)offset, SeekOrigin.Begin);
+            uint value = reader.ReadUInt32();
+            reader.BaseStream.Seek(pos, SeekOrigin.Begin);
+            return value;
+        }
+
+        private static string ReadNullTerminatedStringAtRva(Stream stream, System.Reflection.PortableExecutable.PEHeaders headers, uint rva)
+        {
+            uint offset = RvaToOffset(headers, rva);
+            stream.Seek((long)offset, SeekOrigin.Begin);
+            using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+
+            var bytes = new List<byte>();
+            while (true)
+            {
+                byte b = reader.ReadByte();
+                if (b == 0)
+                    break;
+                bytes.Add(b);
+            }
+            return Encoding.ASCII.GetString(bytes.ToArray());
         }
 
         private static int InitializeFlexASIO(string PathName, bool TestMode)
