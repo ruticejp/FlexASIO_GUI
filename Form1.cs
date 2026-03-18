@@ -93,12 +93,36 @@ namespace FlexASIOGUI
                 }
             }
 
-            // 3) Fallback: search under Program Files for FlexASIO.dll (limited search)
+            // 3) Fallback: locate FlexASIO.exe and derive install path from it.
             string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string flexASIOExe = FindFlexASIOExeUnder(programFiles);
+            if (flexASIOExe != null)
+            {
+                return Path.GetDirectoryName(flexASIOExe);
+            }
+
+            // 4) Fallback: search under Program Files for FlexASIO.dll (limited search)
             string flexASIODll = FindFlexASIODllUnder(programFiles);
             if (flexASIODll != null)
             {
                 return Path.GetDirectoryName(Path.GetDirectoryName(flexASIODll));
+            }
+
+            return null;
+        }
+
+        private static string FindFlexASIOExeUnder(string root)
+        {
+            try
+            {
+                foreach (var path in Directory.EnumerateFiles(root, "FlexASIO.exe", SearchOption.AllDirectories))
+                {
+                    return path;
+                }
+            }
+            catch
+            {
+                // Ignore any access issues.
             }
 
             return null;
