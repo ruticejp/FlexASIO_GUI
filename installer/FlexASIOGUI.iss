@@ -4,6 +4,9 @@
 #define MyAppURL ""
 #define MyAppExeName "FlexASIOGUI.exe"
 
+; Target framework to package (change to net11.0-windows when shipping preview builds)
+#define TargetFramework "net10.0-windows"
+
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
 ; Do not use the same AppId value in installers for other applications.
@@ -32,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ;Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\bin\x64\Release\net10.0-windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "..\bin\x64\Release\{#TargetFramework}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
