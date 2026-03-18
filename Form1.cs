@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -169,11 +169,20 @@ namespace FlexASIOGUI
                 return false;
             }
 
+            // Prefer the conventional x64 layout, but allow other layouts by searching under the install path.
             dllPathTried = Path.Combine(installPath, "x64", "FlexASIO.dll");
             if (!File.Exists(dllPathTried))
             {
-                error = $"FlexASIO.dll not found at expected location: {dllPathTried}";
-                return false;
+                // Fallback: search for FlexASIO.dll anywhere under the install directory.
+                dllPathTried = Directory.GetFiles(installPath, "FlexASIO.dll", SearchOption.AllDirectories)
+                    .FirstOrDefault(p => p.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase))
+                    ?? Directory.GetFiles(installPath, "FlexASIO.dll", SearchOption.AllDirectories).FirstOrDefault();
+
+                if (string.IsNullOrEmpty(dllPathTried))
+                {
+                    error = $"FlexASIO.dll not found under install path: {installPath}";
+                    return false;
+                }
             }
 
             flexAsioModule = LoadLibraryEx(dllPathTried, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
@@ -216,9 +225,16 @@ namespace FlexASIOGUI
                     }
                 }
 
+                // If we still can't locate the right entrypoint, check for missing import dependencies.
+                var imports = GetImportedDllNames(dllPathTried);
+                var missingDeps = GetMissingDependencies(dllPathTried, imports);
                 int win32 = Marshal.GetLastWin32Error();
                 error = $"FlexASIO.dll does not export Initialize (GetProcAddress failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}). " +
                         $"Exports: {string.Join(", ", exports)}";
+                if (missingDeps.Length > 0)
+                {
+                    error += $" Missing dependencies: {string.Join(", ", missingDeps)}";
+                }
                 return false;
             }
 
@@ -269,6 +285,73 @@ namespace FlexASIOGUI
             {
                 return Array.Empty<string>();
             }
+        }
+
+        private static string[] GetImportedDllNames(string dllPath)
+        {
+            try
+            {
+                using var stream = File.OpenRead(dllPath);
+                using var peReader = new System.Reflection.PortableExecutable.PEReader(stream);
+                var headers = peReader.PEHeaders;
+                var importDir = headers.PEHeader.ImportTableDirectory;
+                if (importDir.RelativeVirtualAddress == 0)
+                    return Array.Empty<string>();
+
+                uint importDirOffset = RvaToOffset(headers, (uint)importDir.RelativeVirtualAddress);
+                stream.Seek(importDirOffset, SeekOrigin.Begin);
+                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+
+                var names = new List<string>();
+                while (true)
+                {
+                    uint originalFirstThunk = reader.ReadUInt32();
+                    uint timeDateStamp = reader.ReadUInt32();
+                    uint forwarderChain = reader.ReadUInt32();
+                    uint nameRva = reader.ReadUInt32();
+                    uint firstThunk = reader.ReadUInt32();
+
+                    if (originalFirstThunk == 0 && timeDateStamp == 0 && forwarderChain == 0 && nameRva == 0 && firstThunk == 0)
+                        break;
+
+                    string importName = ReadNullTerminatedStringAtRva(stream, headers, nameRva);
+                    if (!string.IsNullOrEmpty(importName))
+                        names.Add(importName);
+                }
+
+                return names.ToArray();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        }
+
+        private static string[] GetMissingDependencies(string dllPath, string[] importedNames)
+        {
+            var missing = new List<string>();
+            foreach (var name in importedNames)
+            {
+                try
+                {
+                    // Try to load it from the same directory first, then system path.
+                    if (!NativeLibrary.TryLoad(Path.Combine(Path.GetDirectoryName(dllPath), name), out var handle) &&
+                        !NativeLibrary.TryLoad(name, out handle))
+                    {
+                        missing.Add(name);
+                    }
+                    else
+                    {
+                        NativeLibrary.Free(handle);
+                    }
+                }
+                catch
+                {
+                    missing.Add(name);
+                }
+            }
+
+            return missing.ToArray();
         }
 
         private static uint RvaToOffset(System.Reflection.PortableExecutable.PEHeaders headers, uint rva)
