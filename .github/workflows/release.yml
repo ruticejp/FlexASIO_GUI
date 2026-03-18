@@ -88,7 +88,8 @@ jobs:
         with:
           tag: ${{ steps.tags.outputs.tag }}
           allowUpdates: true
-          overwrite: true
-          files: |
+          removeArtifacts: true
+          replacesArtifacts: true
+          artifacts: |
             installer/Output/*.exe
             publish/x64/**/*
