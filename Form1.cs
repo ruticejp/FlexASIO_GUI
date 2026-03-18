@@ -49,8 +49,12 @@ namespace FlexASIOGUI
         [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
         private delegate int InitializeDelegate(string PathName, bool TestMode);
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int CreateFlexASIODelegate();
+
         private static IntPtr flexAsioModule = IntPtr.Zero;
         private static InitializeDelegate initializeFunc;
+        private static CreateFlexASIODelegate createFlexAsioFunc;
 
         private static string GetFlexASIOInstallPath()
         {
@@ -195,6 +199,19 @@ namespace FlexASIOGUI
                     if (proc != IntPtr.Zero)
                     {
                         initializeFunc = Marshal.GetDelegateForFunctionPointer<InitializeDelegate>(proc);
+                        return true;
+                    }
+                }
+
+                // Some FlexASIO versions export CreateFlexASIO instead of Initialize.
+                if (exports.Contains("CreateFlexASIO"))
+                {
+                    IntPtr createProc = GetProcAddress(flexAsioModule, "CreateFlexASIO");
+                    if (createProc != IntPtr.Zero)
+                    {
+                        createFlexAsioFunc = Marshal.GetDelegateForFunctionPointer<CreateFlexASIODelegate>(createProc);
+                        // Call it once to ensure it can be instantiated (if required).
+                        createFlexAsioFunc();
                         return true;
                     }
                 }
