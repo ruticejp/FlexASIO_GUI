@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -8,6 +8,7 @@ using Commons.Media.PortAudio;
 using System.Diagnostics;
 using System.IO;
 using System.Globalization;
+// Tomlyn is used instead of deprecated Nett library for TOML parsing (migrated in v0.36)
 using Tomlyn;
 using System.Runtime.InteropServices;
 
@@ -20,21 +21,378 @@ namespace FlexASIOGUI
         private string TOMLPath;
         private FlexGUIConfig flexGUIConfig;
         private Encoding legacyEncoding;
-        private readonly string flexasioGuiVersion = "0.35";
+        private readonly string flexasioGuiVersion = "0.36";
         private readonly string flexasioVersion = "1.9";
         private readonly string tomlName = "FlexASIO.toml";
         private readonly string docUrl = "https://github.com/dechamps/FlexASIO/blob/master/CONFIGURATION.md";
+        // Tomlyn library options for TOML serialization/deserialization
         TomlModelOptions tomlModelOptions = new();
 
-        [DllImport(@"C:\Program Files\FlexASIO\x64\FlexASIO.dll")]
-        public static extern int Initialize(string PathName, bool TestMode);
+        // FlexASIO is a separate driver DLL. Rather than hard-coding its path, read the install
+        // location from the installer-written registry key and load it dynamically via LoadLibrary.
+        // This improves portability and avoids relying on a fixed path.
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, uint dwFlags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
         [DllImport(@"kernel32.dll")]
         public static extern uint GetACP();
+
+        private const uint LOAD_WITH_ALTERED_SEARCH_PATH = 0x00000008;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private delegate int InitializeDelegate(string PathName, bool TestMode);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int CreateFlexASIODelegate();
+
+        private static IntPtr flexAsioModule = IntPtr.Zero;
+        private static InitializeDelegate initializeFunc;
+        private static CreateFlexASIODelegate createFlexAsioFunc;
+
+        private static string GetFlexASIOInstallPath()
+        {
+            // 1) Prefer the installer-written fork-specific key.
+            string[] registryKeys = new[]
+            {
+                "SOFTWARE\\Fabrikat\\FlexASIOGUI_Rutice\\Install",
+                "SOFTWARE\\Fabrikat\\FlexASIOGUI\\Install"
+            };
+
+            try
+            {
+                foreach (var keyPath in registryKeys)
+                {
+                    using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(keyPath);
+                    var value = key?.GetValue("InstallPath") as string;
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore registry access failures and fall back to common install locations.
+            }
+
+            // 2) Common FlexASIO install paths (used by official installer).
+            var candidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "FlexASIO"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "FlexASIO")
+            };
+
+            foreach (var candidate in candidates)
+            {
+                if (Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            // 3) Fallback: locate FlexASIO.exe and derive install path from it.
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string flexASIOExe = FindFlexASIOExeUnder(programFiles);
+            if (flexASIOExe != null)
+            {
+                return Path.GetDirectoryName(flexASIOExe);
+            }
+
+            // 4) Fallback: search under Program Files for FlexASIO.dll (limited search)
+            string flexASIODll = FindFlexASIODllUnder(programFiles);
+            if (flexASIODll != null)
+            {
+                return Path.GetDirectoryName(Path.GetDirectoryName(flexASIODll));
+            }
+
+            return null;
+        }
+
+        private static string FindFlexASIOExeUnder(string root)
+        {
+            try
+            {
+                foreach (var path in Directory.EnumerateFiles(root, "FlexASIO.exe", SearchOption.AllDirectories))
+                {
+                    return path;
+                }
+            }
+            catch
+            {
+                // Ignore any access issues.
+            }
+
+            return null;
+        }
+
+        private static string FindFlexASIODllUnder(string root)
+        {
+            try
+            {
+                foreach (var path in Directory.EnumerateFiles(root, "FlexASIO.dll", SearchOption.AllDirectories))
+                {
+                    if (path.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return path;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore any access issues, etc.
+            }
+
+            return null;
+        }
+
+        private static bool TryLoadFlexASIODll(out string error, out string dllPathTried)
+        {
+            error = null;
+            dllPathTried = null;
+
+            if (flexAsioModule != IntPtr.Zero)
+            {
+                return true;
+            }
+
+            string installPath = GetFlexASIOInstallPath();
+            if (string.IsNullOrWhiteSpace(installPath))
+            {
+                error = "Could not determine FlexASIO install path from registry or known locations.";
+                return false;
+            }
+
+            dllPathTried = Path.Combine(installPath, "x64", "FlexASIO.dll");
+            if (!File.Exists(dllPathTried))
+            {
+                error = $"FlexASIO.dll not found at expected location: {dllPathTried}";
+                return false;
+            }
+
+            flexAsioModule = LoadLibraryEx(dllPathTried, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
+            if (flexAsioModule == IntPtr.Zero)
+            {
+                int win32 = Marshal.GetLastWin32Error();
+                error = $"Failed to load FlexASIO.dll (LoadLibraryEx failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}).";
+                return false;
+            }
+
+            IntPtr proc = GetProcAddress(flexAsioModule, "Initialize");
+            if (proc == IntPtr.Zero)
+            {
+                var exports = GetExportedNames(dllPathTried, 200);
+
+                // Try to find a similar export name if Initialize is mangled or renamed.
+                string altName = exports
+                    .FirstOrDefault(n => n.IndexOf("initialize", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                if (!string.IsNullOrEmpty(altName))
+                {
+                    proc = GetProcAddress(flexAsioModule, altName);
+                    if (proc != IntPtr.Zero)
+                    {
+                        initializeFunc = Marshal.GetDelegateForFunctionPointer<InitializeDelegate>(proc);
+                        return true;
+                    }
+                }
+
+                // Some FlexASIO versions export CreateFlexASIO instead of Initialize.
+                if (exports.Contains("CreateFlexASIO"))
+                {
+                    IntPtr createProc = GetProcAddress(flexAsioModule, "CreateFlexASIO");
+                    if (createProc != IntPtr.Zero)
+                    {
+                        createFlexAsioFunc = Marshal.GetDelegateForFunctionPointer<CreateFlexASIODelegate>(createProc);
+                        // Call it once to ensure it can be instantiated (if required).
+                        createFlexAsioFunc();
+                        return true;
+                    }
+                }
+
+                int win32 = Marshal.GetLastWin32Error();
+                error = $"FlexASIO.dll does not export Initialize (GetProcAddress failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}). " +
+                        $"Exports: {string.Join(", ", exports)}";
+                return false;
+            }
+
+            initializeFunc = Marshal.GetDelegateForFunctionPointer<InitializeDelegate>(proc);
+            return true;
+        }
+
+        private static string[] GetExportedNames(string dllPath, int maxNames)
+        {
+            try
+            {
+                using var stream = File.OpenRead(dllPath);
+                using var peReader = new System.Reflection.PortableExecutable.PEReader(stream);
+                var headers = peReader.PEHeaders;
+                var exportDir = headers.PEHeader.ExportTableDirectory;
+                if (exportDir.RelativeVirtualAddress == 0)
+                    return Array.Empty<string>();
+
+                uint exportDirOffset = RvaToOffset(headers, (uint)exportDir.RelativeVirtualAddress);
+                stream.Seek(exportDirOffset, SeekOrigin.Begin);
+                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+
+                reader.ReadUInt32(); // Characteristics
+                reader.ReadUInt32(); // TimeDateStamp
+                reader.ReadUInt16(); // MajorVersion
+                reader.ReadUInt16(); // MinorVersion
+                uint nameRva = reader.ReadUInt32();
+                uint ordinalBase = reader.ReadUInt32();
+                uint numberOfFunctions = reader.ReadUInt32();
+                uint numberOfNames = reader.ReadUInt32();
+                uint addressOfFunctionsRva = reader.ReadUInt32();
+                uint addressOfNamesRva = reader.ReadUInt32();
+                uint addressOfNameOrdinalsRva = reader.ReadUInt32();
+
+                var names = new List<string>();
+                int toRead = (int)Math.Min((long)numberOfNames, (long)maxNames);
+                for (int i = 0; i < toRead; i++)
+                {
+                    uint nameRvaEntry = ReadUInt32AtRva(reader, headers, addressOfNamesRva + (uint)(i * 4));
+                    string exportName = ReadNullTerminatedStringAtRva(stream, headers, nameRvaEntry);
+                    if (!string.IsNullOrEmpty(exportName))
+                        names.Add(exportName);
+                }
+
+                return names.ToArray();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        }
+
+        private static uint RvaToOffset(System.Reflection.PortableExecutable.PEHeaders headers, uint rva)
+        {
+            foreach (var section in headers.SectionHeaders)
+            {
+                uint sectionRva = (uint)section.VirtualAddress;
+                uint sectionRaw = (uint)section.PointerToRawData;
+                uint sectionSize = (uint)Math.Max((long)section.VirtualSize, (long)section.SizeOfRawData);
+                if (rva >= sectionRva && rva < sectionRva + sectionSize)
+                {
+                    return sectionRaw + (rva - sectionRva);
+                }
+            }
+            return 0;
+        }
+
+        private static uint ReadUInt32AtRva(BinaryReader reader, System.Reflection.PortableExecutable.PEHeaders headers, uint rva)
+        {
+            long pos = reader.BaseStream.Position;
+            uint offset = RvaToOffset(headers, rva);
+            reader.BaseStream.Seek((long)offset, SeekOrigin.Begin);
+            uint value = reader.ReadUInt32();
+            reader.BaseStream.Seek(pos, SeekOrigin.Begin);
+            return value;
+        }
+
+        private static string ReadNullTerminatedStringAtRva(Stream stream, System.Reflection.PortableExecutable.PEHeaders headers, uint rva)
+        {
+            uint offset = RvaToOffset(headers, rva);
+            stream.Seek((long)offset, SeekOrigin.Begin);
+            using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+
+            var bytes = new List<byte>();
+            while (true)
+            {
+                byte b = reader.ReadByte();
+                if (b == 0)
+                    break;
+                bytes.Add(b);
+            }
+            return Encoding.ASCII.GetString(bytes.ToArray());
+        }
+
+        private static int InitializeFlexASIO(string PathName, bool TestMode)
+        {
+            if (!TryLoadFlexASIODll(out string err, out _))
+            {
+                throw new InvalidOperationException(err);
+            }
+
+            return initializeFunc(PathName, TestMode);
+        }
+
+        // Direct PortAudio P/Invoke declarations for UTF-8 string handling
+        [DllImport("portaudio_x64.dll")]
+        private static extern IntPtr Pa_GetDeviceInfo(int device);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PaDeviceInfo
+        {
+            public int structVersion;
+            public IntPtr name;  // const char* - UTF-8 string
+            public int hostApi;
+            public int maxInputChannels;
+            public int maxOutputChannels;
+            public double defaultLowInputLatency;
+            public double defaultLowOutputLatency;
+            public double defaultHighInputLatency;
+            public double defaultHighOutputLatency;
+            public double defaultSampleRate;
+        }
+
+        // Helper method to safely get device name as UTF-8
+        private static string GetDeviceNameUTF8(int deviceIndex)
+        {
+            try
+            {
+                IntPtr deviceInfoPtr = Pa_GetDeviceInfo(deviceIndex);
+                if (deviceInfoPtr == IntPtr.Zero)
+                    return string.Empty;
+
+                PaDeviceInfo deviceInfo = Marshal.PtrToStructure<PaDeviceInfo>(deviceInfoPtr);
+                if (deviceInfo.name == IntPtr.Zero)
+                    return string.Empty;
+
+                // Read the string as UTF-8
+                int length = 0;
+                while (Marshal.ReadByte(deviceInfo.name, length) != 0)
+                    length++;
+
+                byte[] buffer = new byte[length];
+                Marshal.Copy(deviceInfo.name, buffer, 0, length);
+                return Encoding.UTF8.GetString(buffer);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
 
         public Form1()
         {
             InitializeComponent();
-            
+
+            // Make the status bar label expand to fill the window width so messages are visible without resizing.
+            toolStripStatusLabel1.Spring = true;
+            toolStripStatusLabel1.AutoSize = false;
+            toolStripStatusLabel1.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+
+            // Use the same icon as the installer/executable to keep the taskbar icon consistent.
+            try
+            {
+                var iconPath = Path.Combine(AppContext.BaseDirectory, "flexasiogui.ico");
+                if (File.Exists(iconPath))
+                {
+                    this.Icon = new System.Drawing.Icon(iconPath);
+                }
+            }
+            catch
+            {
+                // Ignore failures; fallback to default icon.
+            }
+
             this.Text = $"FlexASIO GUI v{flexasioGuiVersion}";
 
             System.Globalization.CultureInfo customCulture = (System.Globalization.CultureInfo)System.Threading.Thread.CurrentThread.CurrentCulture.Clone();
@@ -50,12 +408,22 @@ namespace FlexASIOGUI
             CultureInfo.DefaultThreadCurrentUICulture = customCulture;
 
             TOMLPath = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}\\{tomlName}";
-            
+
+            // Keep C# property names as-is when serializing/deserializing TOML (no case conversion)
             tomlModelOptions.ConvertPropertyName = (string name) => name;
             this.LoadFlexASIOConfig(TOMLPath);
 
             InitDone = true;
-            SetStatusMessage($"FlexASIO GUI for FlexASIO {flexasioVersion} started ({Configuration.VersionString})");
+
+            if (TryLoadFlexASIODll(out string dllError, out string dllPathTried))
+            {
+                SetStatusMessage($"FlexASIO GUI for FlexASIO {flexasioVersion} started ({Configuration.VersionString}); loaded FlexASIO.dll from {dllPathTried}.");
+            }
+            else
+            {
+                SetStatusMessage($"FlexASIO GUI started ({Configuration.VersionString}); failed to load FlexASIO.dll (tried {dllPathTried}): {dllError}", isError: true);
+            }
+
             GenerateOutput();
         }
 
@@ -138,22 +506,31 @@ namespace FlexASIOGUI
                 var deviceInfo = Configuration.GetDeviceInfo(i);
 
                 var apiInfo = Configuration.GetHostApiInfo(deviceInfo.hostApi);
-                
-                if (apiInfo.name != Backend) 
+
+                if (apiInfo.name != Backend)
                     continue;
+
+                // Use direct P/Invoke to get UTF-8 device name
+                string deviceName = GetDeviceNameUTF8(i);
+
+                // Fallback to the old method if P/Invoke fails
+                if (string.IsNullOrEmpty(deviceName))
+                {
+                    deviceName = DescrambleUTF8(deviceInfo.name);
+                }
 
                 if (Input == true)
                 {
                     if (deviceInfo.maxInputChannels > 0)
                     {
-                        treeNodes.Add(new TreeNode(DescrambleUTF8(deviceInfo.name)));
+                        treeNodes.Add(new TreeNode(deviceName));
                     }
                 }
                 else
                 {
                     if (deviceInfo.maxOutputChannels > 0)
                     {
-                        treeNodes.Add(new TreeNode(DescrambleUTF8(deviceInfo.name)));
+                        treeNodes.Add(new TreeNode(deviceName));
                     }
                 }
             }
@@ -162,7 +539,7 @@ namespace FlexASIOGUI
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            
+
         }
 
         private void comboBackend_SelectedIndexChanged(object sender, EventArgs e)
@@ -232,9 +609,11 @@ namespace FlexASIOGUI
 
 
 
-        private void SetStatusMessage(string msg)
+        private void SetStatusMessage(string msg, bool isError = false)
         {
+            toolStripStatusLabel1.ForeColor = isError ? System.Drawing.Color.DarkRed : System.Drawing.SystemColors.ControlText;
             toolStripStatusLabel1.Text = $"{DateTime.Now.ToShortDateString()} - {DateTime.Now.ToShortTimeString()}: {msg}";
+            toolStripStatusLabel1.ToolTipText = msg;
         }
 
         private void btClipboard_Click(object sender, EventArgs e)
@@ -262,7 +641,7 @@ namespace FlexASIOGUI
             SetStatusMessage($"Configuration written to {saveFileDialog.FileName}");
         }
 
-         private void treeDevicesInput_AfterSelect(object sender, TreeViewEventArgs e)
+        private void treeDevicesInput_AfterSelect(object sender, TreeViewEventArgs e)
         {
             if (sender == null) return;
             else
@@ -402,7 +781,7 @@ namespace FlexASIOGUI
             GenerateOutput();
         }
 
- 
+
         private void checkBoxSetInputLatency_CheckedChanged(object sender, EventArgs e)
         {
             var o = sender as CheckBox;
@@ -433,15 +812,15 @@ namespace FlexASIOGUI
             }
             GenerateOutput();
         }
-       
+
 
         private void checkBoxSetBufferSize_CheckedChanged(object sender, EventArgs e)
         {
             var o = sender as CheckBox;
             if (o == null) return;
             numericBufferSize.Enabled = o.Checked;
-            if (o.Checked == false) { 
-                flexGUIConfig.bufferSizeSamples = null; 
+            if (o.Checked == false) {
+                flexGUIConfig.bufferSizeSamples = null;
             }
             else
             {
@@ -504,7 +883,7 @@ namespace FlexASIOGUI
         private void btLoadFrom_Click(object sender, EventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
-            
+
             openFileDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             openFileDialog.FileName = tomlName;
             openFileDialog.Filter = "FlexASIO Config (*.toml)|*.toml";
@@ -522,7 +901,7 @@ namespace FlexASIOGUI
                     this.LoadFlexASIOConfig(TOMLPath);
                     return;
                 }
-                
+
             }
             SetStatusMessage($"Configuration loaded from {openFileDialog.FileName}");
         }

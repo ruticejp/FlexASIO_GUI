@@ -2,3 +2,7 @@
 obj
 bin
 installer/Output
+# Explicitly ignore debug/release .pdb files for extra safety
+bin/Debug/net10.0-windows/FlexASIOGUI.pdb
+bin/Release/net10.0-windows/FlexASIOGUI.pdb
+# Release builds do not include .pdb files by default, but this ensures no accidental inclusion
