@@ -148,9 +148,10 @@ namespace FlexASIOGUI
             return null;
         }
 
-        private static bool TryLoadFlexASIODll(out string error)
+        private static bool TryLoadFlexASIODll(out string error, out string dllPathTried)
         {
             error = null;
+            dllPathTried = null;
 
             if (flexAsioModule != IntPtr.Zero)
             {
@@ -160,18 +161,18 @@ namespace FlexASIOGUI
             string installPath = GetFlexASIOInstallPath();
             if (string.IsNullOrWhiteSpace(installPath))
             {
-                error = "Could not determine FlexASIO install path from registry.";
+                error = "Could not determine FlexASIO install path from registry or known locations.";
                 return false;
             }
 
-            string dllPath = Path.Combine(installPath, "x64", "FlexASIO.dll");
-            if (!File.Exists(dllPath))
+            dllPathTried = Path.Combine(installPath, "x64", "FlexASIO.dll");
+            if (!File.Exists(dllPathTried))
             {
-                error = $"FlexASIO.dll not found at expected location: {dllPath}";
+                error = $"FlexASIO.dll not found at expected location: {dllPathTried}";
                 return false;
             }
 
-            flexAsioModule = LoadLibraryEx(dllPath, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
+            flexAsioModule = LoadLibraryEx(dllPathTried, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
             if (flexAsioModule == IntPtr.Zero)
             {
                 error = $"Failed to load FlexASIO.dll (LoadLibraryEx failed; code={Marshal.GetLastWin32Error()}).";
@@ -191,7 +192,7 @@ namespace FlexASIOGUI
 
         private static int InitializeFlexASIO(string PathName, bool TestMode)
         {
-            if (!TryLoadFlexASIODll(out string err))
+            if (!TryLoadFlexASIODll(out string err, out _))
             {
                 throw new InvalidOperationException(err);
             }
@@ -291,13 +292,13 @@ namespace FlexASIOGUI
 
             InitDone = true;
 
-            if (TryLoadFlexASIODll(out string dllError))
+            if (TryLoadFlexASIODll(out string dllError, out string dllPathTried))
             {
-                SetStatusMessage($"FlexASIO GUI for FlexASIO {flexasioVersion} started ({Configuration.VersionString}); loaded FlexASIO.dll successfully.");
+                SetStatusMessage($"FlexASIO GUI for FlexASIO {flexasioVersion} started ({Configuration.VersionString}); loaded FlexASIO.dll from {dllPathTried}.");
             }
             else
             {
-                SetStatusMessage($"FlexASIO GUI started ({Configuration.VersionString}); failed to load FlexASIO.dll: {dllError}", isError: true);
+                SetStatusMessage($"FlexASIO GUI started ({Configuration.VersionString}); failed to load FlexASIO.dll (tried {dllPathTried}): {dllError}", isError: true);
             }
 
             GenerateOutput();
