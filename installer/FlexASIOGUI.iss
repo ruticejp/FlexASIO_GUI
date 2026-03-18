@@ -1,13 +1,14 @@
 #define MyAppName "FlexASIO GUI"
-#define MyAppVersion "0.36"
+#define MyAppVersion "0.36.0"
 #define MyAppPublisher "https://github.com/ruticejp/FlexASIO_GUI"
 #define MyAppURL ""
 #define MyAppExeName "FlexASIOGUI.exe"
 
 ; This installer is built from the fork maintained by Rutice (https://github.com/ruticejp/FlexASIO_GUI).
-; The original project is by dechamps (https://github.com/dechamps/FlexASIO_GUI), and their work is respected and credited.
+; The original GUI project is by flipswitchingmonkey (https://github.com/flipswitchingmonkey/FlexASIO_GUI),
+; based on FlexASIO by dechamps (https://github.com/dechamps/FlexASIO), and all work is respected and credited.
 
-; Target framework to package (change to net11.0-windows when shipping preview builds)
+; Target framework to package
 #define TargetFramework "net10.0-windows"
 
 [Setup]

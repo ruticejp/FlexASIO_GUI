@@ -28,10 +28,10 @@ This document summarizes the key changes and maintenance actions performed by Ru
 
 > This project is a continuation fork of the original `dechamps/FlexASIO_GUI` repository. The original author is credited and respected; this fork exists to enable ongoing maintenance and improvements when upstream changes were not merged.
 
-- Upgraded project to **.NET 10.0 (and optional .NET 11 preview)** by updating `FlexASIOGUI.csproj` and adding `global.json`.
+- Upgraded project to **.NET 10.0** by updating `FlexASIOGUI.csproj` and adding `global.json`.
 - Updated documentation and installer script to reference .NET 10 build output (`net10.0-windows`).
 - Removed unused package references (`Microsoft.Win32.Registry`, `System.Text.Encoding.CodePages`) to eliminate `NU1510` warnings.
-- Verified successful Debug/Release builds for both `net10.0-windows` and `net11.0-windows`.
+- Verified successful Debug/Release builds for `net10.0-windows`.
 
 ## 2026-03-18 (DLL loading / dependency stability)
 

@@ -1,9 +1,9 @@
 {
   "sdk": {
-    // This repo targets .NET 10 (and optionally .NET 11 preview).
-    // Install the .NET 10/11 preview SDK from https://aka.ms/dotnet/download to build.
-    "version": "10.0.100",
-    // Allow rolling forward to .NET 11 preview when building net11.0-windows.
-    "rollForward": "latestMajor"
+    // This repo targets .NET 10.0.
+    // Install the .NET 10 SDK from https://aka.ms/dotnet/download to build.
+    // Allow using the latest 10.0 patch (e.g. 10.0.201) when available.
+    "version": "10.0.201",
+    "rollForward": "latestPatch"
   }
 }

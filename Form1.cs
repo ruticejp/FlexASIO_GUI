@@ -8,6 +8,7 @@ using Commons.Media.PortAudio;
 using System.Diagnostics;
 using System.IO;
 using System.Globalization;
+using Microsoft.Win32;
 // Tomlyn is used instead of deprecated Nett library for TOML parsing (migrated in v0.36)
 using Tomlyn;
 using System.Runtime.InteropServices;
@@ -140,15 +141,7 @@ namespace FlexASIOGUI
                 if (candidates.Length == 0)
                     return null;
 
-                // Prefer x64 candidates and choose the highest file version.
-                var scored = candidates
-                    .Select(p => (path: p, version: GetFileVersion(p), is64: IsDll64Bit(p)))
-                    .Where(x => x.version != null)
-                    .OrderByDescending(x => x.is64)
-                    .ThenByDescending(x => x.version)
-                    .ToArray();
-
-                return scored.Length > 0 ? scored[0].path : candidates[0];
+                return FlexAsioDllSelector.ChooseBestDll(candidates, GetFileVersion, IsDll64Bit);
             }
             catch
             {
@@ -180,6 +173,40 @@ namespace FlexASIOGUI
             catch
             {
                 return false;
+            }
+        }
+
+        private void ResetFlexAsioModule()
+        {
+            if (flexAsioModule != IntPtr.Zero)
+            {
+                FreeLibrary(flexAsioModule);
+                flexAsioModule = IntPtr.Zero;
+                initializeFunc = null;
+                createFlexAsioFunc = null;
+            }
+        }
+
+        private static void WriteInstallPathToRegistry(string installPath)
+        {
+            try
+            {
+                using var key1 = Registry.LocalMachine.CreateSubKey("SOFTWARE\\Fabrikat\\FlexASIOGUI_Rutice\\Install");
+                key1?.SetValue("InstallPath", installPath);
+            }
+            catch
+            {
+                // ignore
+            }
+
+            try
+            {
+                using var key2 = Registry.LocalMachine.CreateSubKey("SOFTWARE\\Fabrikat\\FlexASIOGUI\\Install");
+                key2?.SetValue("InstallPath", installPath);
+            }
+            catch
+            {
+                // ignore
             }
         }
 
@@ -557,7 +584,18 @@ namespace FlexASIOGUI
 
             // Keep C# property names as-is when serializing/deserializing TOML (no case conversion)
             tomlModelOptions.ConvertPropertyName = (string name) => name;
-            this.LoadFlexASIOConfig(TOMLPath);
+
+            // Parse the TOML; if parsing fails, show a message so users can fix the file.
+            var (config, tomlError) = FlexAsioToml.ParseWithError(TOMLPath, tomlModelOptions);
+            if (!string.IsNullOrEmpty(tomlError))
+            {
+                SetStatusMessage($"Failed to parse {tomlName}: {tomlError}", isError: true);
+            }
+
+            flexGUIConfig = config;
+
+            // Initialize UI controls (backend list, device list, etc.) from the loaded/parsed config.
+            LoadFlexASIOConfig(TOMLPath);
 
             InitDone = true;
 
@@ -570,6 +608,7 @@ namespace FlexASIOGUI
                 SetStatusMessage($"FlexASIO GUI started ({Configuration.VersionString}); failed to load FlexASIO.dll (tried {dllPathTried}): {dllError}", isError: true);
             }
 
+
             GenerateOutput();
         }
 
@@ -579,7 +618,7 @@ namespace FlexASIOGUI
             if (File.Exists(tomlPath))
             {
                 var tomlPathAsText = File.ReadAllText(tomlPath);
-                flexGUIConfig = Toml.ToModel<FlexGUIConfig>(tomlPathAsText, options: tomlModelOptions);
+                flexGUIConfig = FlexAsioToml.Parse(tomlPathAsText, tomlModelOptions);
             }
 
             numericBufferSize.Maximum = 8192;
@@ -1050,6 +1089,32 @@ namespace FlexASIOGUI
 
             }
             SetStatusMessage($"Configuration loaded from {openFileDialog.FileName}");
+        }
+
+        private void btLocateFlexASIO_Click(object sender, EventArgs e)
+        {
+            using var dlg = new OpenFileDialog();
+            dlg.Filter = "FlexASIO.dll|FlexASIO.dll";
+            dlg.Title = "Locate FlexASIO.dll";
+            dlg.CheckFileExists = true;
+            dlg.Multiselect = false;
+
+            if (dlg.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            string folder = Path.GetDirectoryName(dlg.FileName);
+            WriteInstallPathToRegistry(folder);
+
+            ResetFlexAsioModule();
+            if (TryLoadFlexASIODll(out string err2, out string dllPath2))
+            {
+                SetStatusMessage($"Manually selected FlexASIO.dll loaded from {dllPath2}.");
+                GenerateOutput();
+            }
+            else
+            {
+                SetStatusMessage($"Failed to load FlexASIO.dll from selected folder ({folder}): {err2}", isError: true);
+            }
         }
     }
 }

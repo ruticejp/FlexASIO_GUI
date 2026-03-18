@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine tags
+        id: tags
+        run: |
+          TAG=${{ github.ref_name }}
+          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -z "${{ steps.tags.outputs.prev_tag }}" ]; then
+            echo "body=Release ${{ steps.tags.outputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "body=Release ${{ steps.tags.outputs.tag }}\n\nChanges since ${{ steps.tags.outputs.prev_tag }}:" >> $GITHUB_OUTPUT
+            git log --oneline "${{ steps.tags.outputs.prev_tag }}..${{ steps.tags.outputs.tag }}" | sed 's/^/- /' >> changelog.txt
+            cat changelog.txt
+            echo "body=$(cat changelog.txt | sed 's/$/\\n/' | tr -d '\r')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release x64)
+        run: |
+          dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -o publish/x64
+
+      - name: Build (Release x86)
+        run: |
+          dotnet publish -c Release -r win-x86 --self-contained false -p:PublishSingleFile=false -o publish/x86
+
+      - name: Install Inno Setup (chocolatey)
+        run: choco install -y innosetup
+
+      - name: Build Inno Setup installer
+        run: |
+          mkdir -Force installer\Output
+          iscc installer\FlexASIOGUI.iss
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.tags.outputs.tag }}
+          name: ${{ steps.tags.outputs.tag }}
+          body: ${{ steps.changelog.outputs.body }}
+
+      - name: Upload installers to Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.tags.outputs.tag }}
+          files: |
+            installer\Output\*.exe
+            publish\x64\*.*
+            publish\x86\*.*
