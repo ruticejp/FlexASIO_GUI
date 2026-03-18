@@ -62,10 +62,17 @@ jobs:
           name: ${{ steps.tags.outputs.tag }}
           body: ${{ steps.changelog.outputs.body }}
 
+      - name: List generated artifacts
+        run: |
+          echo "=== installer/Output ==="
+          dir /B /S "installer\Output" || echo "installer/Output not found"
+          echo "=== publish/x64 ==="
+          dir /B /S "publish\x64" || echo "publish/x64 not found"
+
       - name: Upload installers to Release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.tags.outputs.tag }}
           files: |
-            installer\Output\*.exe
-            publish\x64\*.*
+            installer/Output/*.exe
+            publish/x64/**/*
