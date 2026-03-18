@@ -112,4 +112,3 @@ Some native Windows DLL loaders and drivers can fail to load DLLs when the insta
 - The status bar will show the error message; use that to correct the file.
 
 ![image](https://user-images.githubusercontent.com/6930367/118895016-a4746a80-b905-11eb-806c-7fd3fee4fcd1.png)
-
