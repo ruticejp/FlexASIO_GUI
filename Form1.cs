@@ -183,8 +183,23 @@ namespace FlexASIOGUI
             IntPtr proc = GetProcAddress(flexAsioModule, "Initialize");
             if (proc == IntPtr.Zero)
             {
+                var exports = GetExportedNames(dllPathTried, 200);
+
+                // Try to find a similar export name if Initialize is mangled or renamed.
+                string altName = exports
+                    .FirstOrDefault(n => n.IndexOf("initialize", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                if (!string.IsNullOrEmpty(altName))
+                {
+                    proc = GetProcAddress(flexAsioModule, altName);
+                    if (proc != IntPtr.Zero)
+                    {
+                        initializeFunc = Marshal.GetDelegateForFunctionPointer<InitializeDelegate>(proc);
+                        return true;
+                    }
+                }
+
                 int win32 = Marshal.GetLastWin32Error();
-                var exports = GetExportedNames(dllPathTried, 20);
                 error = $"FlexASIO.dll does not export Initialize (GetProcAddress failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}). " +
                         $"Exports: {string.Join(", ", exports)}";
                 return false;
