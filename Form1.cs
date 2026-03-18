@@ -226,7 +226,7 @@ namespace FlexASIOGUI
             }
             else
             {
-                SetStatusMessage($"FlexASIO GUI started ({Configuration.VersionString}); failed to load FlexASIO.dll: {dllError}");
+                SetStatusMessage($"FlexASIO GUI started ({Configuration.VersionString}); failed to load FlexASIO.dll: {dllError}", isError: true);
             }
 
             GenerateOutput();
@@ -414,8 +414,9 @@ namespace FlexASIOGUI
 
 
 
-        private void SetStatusMessage(string msg)
+        private void SetStatusMessage(string msg, bool isError = false)
         {
+            toolStripStatusLabel1.ForeColor = isError ? System.Drawing.Color.DarkRed : System.Drawing.SystemColors.ControlText;
             toolStripStatusLabel1.Text = $"{DateTime.Now.ToShortDateString()} - {DateTime.Now.ToShortTimeString()}: {msg}";
         }
 
