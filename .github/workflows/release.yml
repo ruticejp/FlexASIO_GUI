@@ -45,11 +45,11 @@ jobs:
 
       - name: Build (Release x64)
         run: |
-          dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -o publish/x64
+          dotnet publish FlexASIOGUI.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -o publish/x64
 
       - name: Build (Release x86)
         run: |
-          dotnet publish -c Release -r win-x86 --self-contained false -p:PublishSingleFile=false -o publish/x86
+          dotnet publish FlexASIOGUI.csproj -c Release -r win-x86 --self-contained false -p:PublishSingleFile=false -o publish/x86
 
       - name: Install Inno Setup (chocolatey)
         run: choco install -y innosetup
