@@ -17,6 +17,7 @@ jobs:
 
       - name: Determine tags
         id: tags
+        shell: bash
         run: |
           TAG=${{ github.ref_name }}
           PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
@@ -25,6 +26,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
+        shell: bash
         run: |
           if [ -z "${{ steps.tags.outputs.prev_tag }}" ]; then
             echo "body=Release ${{ steps.tags.outputs.tag }}" >> $GITHUB_OUTPUT
