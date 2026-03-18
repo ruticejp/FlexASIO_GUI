@@ -175,14 +175,16 @@ namespace FlexASIOGUI
             flexAsioModule = LoadLibraryEx(dllPathTried, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
             if (flexAsioModule == IntPtr.Zero)
             {
-                error = $"Failed to load FlexASIO.dll (LoadLibraryEx failed; code={Marshal.GetLastWin32Error()}).";
+                int win32 = Marshal.GetLastWin32Error();
+                error = $"Failed to load FlexASIO.dll (LoadLibraryEx failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}).";
                 return false;
             }
 
             IntPtr proc = GetProcAddress(flexAsioModule, "Initialize");
             if (proc == IntPtr.Zero)
             {
-                error = "FlexASIO.dll does not export Initialize";
+                int win32 = Marshal.GetLastWin32Error();
+                error = $"FlexASIO.dll does not export Initialize (GetProcAddress failed; code={win32}: {new System.ComponentModel.Win32Exception(win32).Message}).";
                 return false;
             }
 
