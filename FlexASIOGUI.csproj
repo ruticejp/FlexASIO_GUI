@@ -36,4 +36,11 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="installer\flexasiogui.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>flexasiogui.ico</Link>
+    </Content>
+  </ItemGroup>
+
 </Project>
