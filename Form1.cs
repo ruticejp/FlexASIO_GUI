@@ -8,7 +8,7 @@ using Commons.Media.PortAudio;
 using System.Diagnostics;
 using System.IO;
 using System.Globalization;
-// Tomlyn is used instead of deprecated Nett library for TOML parsing (migrated in v0.35)
+// Tomlyn is used instead of deprecated Nett library for TOML parsing (migrated in v0.36)
 using Tomlyn;
 using System.Runtime.InteropServices;
 
@@ -21,7 +21,7 @@ namespace FlexASIOGUI
         private string TOMLPath;
         private FlexGUIConfig flexGUIConfig;
         private Encoding legacyEncoding;
-        private readonly string flexasioGuiVersion = "0.35";
+        private readonly string flexasioGuiVersion = "0.36";
         private readonly string flexasioVersion = "1.9";
         private readonly string tomlName = "FlexASIO.toml";
         private readonly string docUrl = "https://github.com/dechamps/FlexASIO/blob/master/CONFIGURATION.md";
@@ -83,7 +83,7 @@ namespace FlexASIOGUI
         public Form1()
         {
             InitializeComponent();
-            
+
             this.Text = $"FlexASIO GUI v{flexasioGuiVersion}";
 
             System.Globalization.CultureInfo customCulture = (System.Globalization.CultureInfo)System.Threading.Thread.CurrentThread.CurrentCulture.Clone();
@@ -99,7 +99,7 @@ namespace FlexASIOGUI
             CultureInfo.DefaultThreadCurrentUICulture = customCulture;
 
             TOMLPath = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}\\{tomlName}";
-            
+
             // Keep C# property names as-is when serializing/deserializing TOML (no case conversion)
             tomlModelOptions.ConvertPropertyName = (string name) => name;
             this.LoadFlexASIOConfig(TOMLPath);
@@ -188,13 +188,13 @@ namespace FlexASIOGUI
                 var deviceInfo = Configuration.GetDeviceInfo(i);
 
                 var apiInfo = Configuration.GetHostApiInfo(deviceInfo.hostApi);
-                
-                if (apiInfo.name != Backend) 
+
+                if (apiInfo.name != Backend)
                     continue;
 
                 // Use direct P/Invoke to get UTF-8 device name
                 string deviceName = GetDeviceNameUTF8(i);
-                
+
                 // Fallback to the old method if P/Invoke fails
                 if (string.IsNullOrEmpty(deviceName))
                 {
@@ -221,7 +221,7 @@ namespace FlexASIOGUI
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            
+
         }
 
         private void comboBackend_SelectedIndexChanged(object sender, EventArgs e)
@@ -321,7 +321,7 @@ namespace FlexASIOGUI
             SetStatusMessage($"Configuration written to {saveFileDialog.FileName}");
         }
 
-         private void treeDevicesInput_AfterSelect(object sender, TreeViewEventArgs e)
+        private void treeDevicesInput_AfterSelect(object sender, TreeViewEventArgs e)
         {
             if (sender == null) return;
             else
@@ -461,7 +461,7 @@ namespace FlexASIOGUI
             GenerateOutput();
         }
 
- 
+
         private void checkBoxSetInputLatency_CheckedChanged(object sender, EventArgs e)
         {
             var o = sender as CheckBox;
@@ -492,15 +492,15 @@ namespace FlexASIOGUI
             }
             GenerateOutput();
         }
-       
+
 
         private void checkBoxSetBufferSize_CheckedChanged(object sender, EventArgs e)
         {
             var o = sender as CheckBox;
             if (o == null) return;
             numericBufferSize.Enabled = o.Checked;
-            if (o.Checked == false) { 
-                flexGUIConfig.bufferSizeSamples = null; 
+            if (o.Checked == false) {
+                flexGUIConfig.bufferSizeSamples = null;
             }
             else
             {
@@ -563,7 +563,7 @@ namespace FlexASIOGUI
         private void btLoadFrom_Click(object sender, EventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
-            
+
             openFileDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             openFileDialog.FileName = tomlName;
             openFileDialog.Filter = "FlexASIO Config (*.toml)|*.toml";
@@ -581,7 +581,7 @@ namespace FlexASIOGUI
                     this.LoadFlexASIOConfig(TOMLPath);
                     return;
                 }
-                
+
             }
             SetStatusMessage($"Configuration loaded from {openFileDialog.FileName}");
         }
