@@ -256,7 +256,12 @@ namespace FlexASIOGUI
                         $"Exports: {string.Join(", ", exports)}";
                 if (missingDeps.Length > 0)
                 {
-                    error += $" Missing dependencies: {string.Join(", ", missingDeps)}";
+                    error += $" Missing dependencies: {string.Join(", ", missingDeps)}.";
+                    var hint = GetDependencyHelp(missingDeps);
+                    if (!string.IsNullOrEmpty(hint))
+                    {
+                        error += " " + hint;
+                    }
                 }
                 return false;
             }
@@ -417,6 +422,41 @@ namespace FlexASIOGUI
                 bytes.Add(b);
             }
             return Encoding.ASCII.GetString(bytes.ToArray());
+        }
+
+        private static string GetDependencyHelp(string[] missingDeps)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "VCRUNTIME140.dll", "Install the Microsoft Visual C++ 2015-2022 Redistributable (x64)." },
+                { "MSVCP140.dll", "Install the Microsoft Visual C++ 2015-2022 Redistributable (x64)." },
+                { "VCRUNTIME140_1.dll", "Install the Microsoft Visual C++ 2015-2022 Redistributable (x64)." },
+                { "VCRUNTIME140_2.dll", "Install the Microsoft Visual C++ 2015-2022 Redistributable (x64)." },
+                { "ucrtbased.dll", "This looks like a debug build dependency (ucrtbased). Use a release build of FlexASIO or install the debug runtime." },
+                { "api-ms-win-crt-*.dll", "Install the Windows Universal C Runtime (KB2999226) or the Visual C++ Redistributable." }
+            };
+
+            var hints = new HashSet<string>();
+            foreach (var dep in missingDeps)
+            {
+                foreach (var pair in map)
+                {
+                    if (pair.Key.EndsWith("*"))
+                    {
+                        var prefix = pair.Key.TrimEnd('*');
+                        if (dep.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            hints.Add(pair.Value);
+                        }
+                    }
+                    else if (string.Equals(dep, pair.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hints.Add(pair.Value);
+                    }
+                }
+            }
+
+            return hints.Count > 0 ? "Hint: " + string.Join(" ", hints) : null;
         }
 
         private static int InitializeFlexASIO(string PathName, bool TestMode)
