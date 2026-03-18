@@ -33,6 +33,19 @@ This document summarizes the key changes and maintenance actions performed by Ru
 - Removed unused package references (`Microsoft.Win32.Registry`, `System.Text.Encoding.CodePages`) to eliminate `NU1510` warnings.
 - Verified successful Debug/Release builds for both `net10.0-windows` and `net11.0-windows`.
 
+## 2026-03-18 (DLL loading / dependency stability)
+
+- Implemented robust automatic detection of `FlexASIO.dll`:
+  - Reads installer-written registry keys (fork-specific + original)
+  - Falls back to common install paths and searches for `FlexASIO.exe`
+  - Scans install directory for any `FlexASIO.dll` and selects the best candidate (x64 + highest file version)
+- Added runtime dependency inspection:
+  - Detects missing import DLLs and displays them in the status message
+  - Includes actionable hints (e.g., install Visual C++ Redistributable)
+- Improved status bar messaging to show:
+  - which DLL path was tried
+  - why loading failed (including missing exports or missing dependencies)
+
 ---
 
 *This changelog is maintained by Rutice ([ruticejp](https://github.com/ruticejp)).*
