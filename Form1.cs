@@ -52,34 +52,76 @@ namespace FlexASIOGUI
         private static IntPtr flexAsioModule = IntPtr.Zero;
         private static InitializeDelegate initializeFunc;
 
-        private static string GetFlexASIOInstallPathFromRegistry()
+        private static string GetFlexASIOInstallPath()
         {
-            // Prefer the fork-specific key, but fall back to upstream key if needed.
-            const string forkKey = "SOFTWARE\\Fabrikat\\FlexASIOGUI_Rutice\\Install";
-            const string upstreamKey = "SOFTWARE\\Fabrikat\\FlexASIOGUI\\Install";
+            // 1) Prefer the installer-written fork-specific key.
+            string[] registryKeys = new[]
+            {
+                "SOFTWARE\\Fabrikat\\FlexASIOGUI_Rutice\\Install",
+                "SOFTWARE\\Fabrikat\\FlexASIOGUI\\Install"
+            };
 
-            string path = null;
             try
             {
-                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(forkKey))
+                foreach (var keyPath in registryKeys)
                 {
-                    path = key?.GetValue("InstallPath") as string;
-                }
-
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(upstreamKey))
+                    using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(keyPath);
+                    var value = key?.GetValue("InstallPath") as string;
+                    if (!string.IsNullOrWhiteSpace(value))
                     {
-                        path = key?.GetValue("InstallPath") as string;
+                        return value;
                     }
                 }
             }
             catch
             {
-                // Ignore registry access failures; we'll fall back to default locations.
+                // Ignore registry access failures and fall back to common install locations.
             }
 
-            return string.IsNullOrWhiteSpace(path) ? null : path;
+            // 2) Common FlexASIO install paths (used by official installer).
+            var candidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "FlexASIO"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "FlexASIO")
+            };
+
+            foreach (var candidate in candidates)
+            {
+                if (Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            // 3) Fallback: search under Program Files for FlexASIO.dll (limited search)
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string flexASIODll = FindFlexASIODllUnder(programFiles);
+            if (flexASIODll != null)
+            {
+                return Path.GetDirectoryName(Path.GetDirectoryName(flexASIODll));
+            }
+
+            return null;
+        }
+
+        private static string FindFlexASIODllUnder(string root)
+        {
+            try
+            {
+                foreach (var path in Directory.EnumerateFiles(root, "FlexASIO.dll", SearchOption.AllDirectories))
+                {
+                    if (path.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return path;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore any access issues, etc.
+            }
+
+            return null;
         }
 
         private static bool TryLoadFlexASIODll(out string error)
@@ -91,7 +133,7 @@ namespace FlexASIOGUI
                 return true;
             }
 
-            string installPath = GetFlexASIOInstallPathFromRegistry();
+            string installPath = GetFlexASIOInstallPath();
             if (string.IsNullOrWhiteSpace(installPath))
             {
                 error = "Could not determine FlexASIO install path from registry.";
