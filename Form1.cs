@@ -184,6 +184,11 @@ namespace FlexASIOGUI
         {
             InitializeComponent();
 
+            // Make the status bar label expand to fill the window width so messages are visible without resizing.
+            toolStripStatusLabel1.Spring = true;
+            toolStripStatusLabel1.AutoSize = false;
+            toolStripStatusLabel1.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+
             // Use the same icon as the installer/executable to keep the taskbar icon consistent.
             try
             {
@@ -418,6 +423,7 @@ namespace FlexASIOGUI
         {
             toolStripStatusLabel1.ForeColor = isError ? System.Drawing.Color.DarkRed : System.Drawing.SystemColors.ControlText;
             toolStripStatusLabel1.Text = $"{DateTime.Now.ToShortDateString()} - {DateTime.Now.ToShortTimeString()}: {msg}";
+            toolStripStatusLabel1.ToolTipText = msg;
         }
 
         private void btClipboard_Click(object sender, EventArgs e)
