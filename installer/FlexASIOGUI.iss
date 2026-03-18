@@ -41,9 +41,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ;Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; Only package the framework-dependent output (without RID subfolders like win-x64/win-x86).
-; This keeps the installer small and avoids bundling redundant runtime-specific folders.
-Source: "..\bin\Release\{#TargetFramework}\*"; DestDir: "{app}"; Flags: ignoreversion
+; Use the published output folder created by the CI workflow.
+; This avoids relying on build output paths that are not populated in the Actions runner.
+Source: "..\publish\x64\*"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
