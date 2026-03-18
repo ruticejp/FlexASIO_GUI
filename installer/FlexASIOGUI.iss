@@ -41,7 +41,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ;Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\bin\Release\{#TargetFramework}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+; Only package the framework-dependent output (without RID subfolders like win-x64/win-x86).
+; This keeps the installer small and avoids bundling redundant runtime-specific folders.
+Source: "..\bin\Release\{#TargetFramework}\*"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
