@@ -18,7 +18,9 @@
 
   <ItemGroup>
     <Reference Include="portaudio-sharp">
-      <HintPath>lib\Debug\portaudio-sharp.dll</HintPath>
+      <!-- Use configuration-specific portaudio-sharp build to match Debug/Release builds. -->
+      <HintPath>lib\$(Configuration)\portaudio-sharp.dll</HintPath>
+      <Private>True</Private>
     </Reference>
   </ItemGroup>
 
