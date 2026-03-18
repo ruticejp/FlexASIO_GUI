@@ -4,7 +4,7 @@
 #define MyAppURL ""
 #define MyAppExeName "FlexASIOGUI.exe"
 
-; This installer is built from the fork maintained by rutice (https://github.com/ruticejp/FlexASIO_GUI).
+; This installer is built from the fork maintained by Rutice (https://github.com/ruticejp/FlexASIO_GUI).
 ; The original project is by dechamps (https://github.com/dechamps/FlexASIO_GUI), and their work is respected and credited.
 
 ; Target framework to package (change to net11.0-windows when shipping preview builds)
@@ -17,8 +17,8 @@
 AppId={{85A2342E-43B3-4527-A533-6F250F1E5765}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-; Show that this installer comes from the rutice fork while keeping the original app name.
-AppVerName={#MyAppName} {#MyAppVersion} (rutice fork)
+; Show that this installer comes from the Rutice fork while keeping the original app name.
+AppVerName={#MyAppName} {#MyAppVersion} (Rutice fork)
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -26,7 +26,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={commonpf64}\FlexASIOGUI
 DisableProgramGroupPage=yes
 ;OutputDir=
-OutputBaseFilename={#MyAppName}Installer_{#MyAppVersion}
+OutputBaseFilename={#MyAppName}Installer_{#MyAppVersion}_Rutice
 SetupIconFile=flexasiogui.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma

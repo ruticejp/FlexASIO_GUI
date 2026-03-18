@@ -1,6 +1,6 @@
 ⚠️ **This repository is a fork/continuation of the original project by `dechamps` (https://github.com/dechamps/FlexASIO_GUI).**
 
-This fork is maintained by `rutice` (https://github.com/ruticejp) and includes ongoing improvements such as .NET 10/11 support, installer updates, and UTF‑8 handling fixes. The original author is credited and respected; this is an independent continuation in the absence of an accepted PR upstream.
+This fork is maintained by `Rutice` (https://github.com/ruticejp) and includes ongoing improvements such as .NET 10/11 support, installer updates, and UTF‑8 handling fixes. The original author is credited and respected; this is an independent continuation in the absence of an accepted PR upstream.
 
 This is a small GUI to make the configuration of https://github.com/dechamps/FlexASIO a bit quicker.
 

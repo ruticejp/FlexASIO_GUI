@@ -28,4 +28,4 @@ This document summarizes the key changes and maintenance actions performed by Ru
 
 ---
 
-*This changelog was created and maintained by Rutice ([ruticejp](https://github.com/ruticejp)).*
+*This changelog is maintained by Rutice ([ruticejp](https://github.com/ruticejp)).*
