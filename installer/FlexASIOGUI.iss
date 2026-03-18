@@ -50,7 +50,7 @@ Name: "{commonprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Root: HKLM64; Subkey: "Software\Fabrikat"; Flags: uninsdeletekeyifempty
 Root: HKLM64; Subkey: "Software\Fabrikat\FlexASIOGUI"; Flags: uninsdeletekey
 Root: HKLM64; Subkey: "Software\Fabrikat\FlexASIOGUI\Install"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"
-Root: HKLM64; Subkey: "Software\Fabrikat\FlexASIOGUI_rutice\Install"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"
+Root: HKLM64; Subkey: "Software\Fabrikat\FlexASIOGUI_Rutice\Install"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"
 
 [Code]
 function InitializeSetup(): Boolean;
@@ -60,7 +60,7 @@ begin
   // If the old (original author) install path exists, copy it into the fork-specific key.
   if RegQueryStringValue(HKLM, 'Software\\Fabrikat\\FlexASIOGUI\\Install', 'InstallPath', OldPath) then
   begin
-    RegWriteStringValue(HKLM, 'Software\\Fabrikat\\FlexASIOGUI_rutice\\Install', 'InstallPath', OldPath);
+    RegWriteStringValue(HKLM, 'Software\\Fabrikat\\FlexASIOGUI_Rutice\\Install', 'InstallPath', OldPath);
   end;
   Result := True;
 end;
