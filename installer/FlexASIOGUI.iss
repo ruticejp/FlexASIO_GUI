@@ -26,7 +26,8 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={commonpf64}\FlexASIOGUI
 DisableProgramGroupPage=yes
 ;OutputDir=
-OutputBaseFilename={#MyAppName}Installer_{#MyAppVersion}_Rutice
+; Use a filename format close to the original installer naming, and indicate this is the Rutice fork with UTF-8 fix.
+OutputBaseFilename=FlexASIO.GUIInstaller_{#MyAppVersion}_Rutice_UTF8fix
 SetupIconFile=flexasiogui.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
