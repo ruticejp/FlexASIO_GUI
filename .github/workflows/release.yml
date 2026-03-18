@@ -63,11 +63,21 @@ jobs:
           body: ${{ steps.changelog.outputs.body }}
 
       - name: List generated artifacts
+        shell: pwsh
         run: |
-          echo "=== installer/Output ==="
-          dir /B /S "installer\Output" || echo "installer/Output not found"
-          echo "=== publish/x64 ==="
-          dir /B /S "publish\x64" || echo "publish/x64 not found"
+          Write-Host '=== installer/Output ==='
+          if (Test-Path 'installer\Output') {
+            Get-ChildItem -Path 'installer\Output' -Recurse | ForEach-Object { Write-Host $_.FullName }
+          } else {
+            Write-Host 'installer/Output not found'
+          }
+
+          Write-Host '=== publish/x64 ==='
+          if (Test-Path 'publish\x64') {
+            Get-ChildItem -Path 'publish\x64' -Recurse | ForEach-Object { Write-Host $_.FullName }
+          } else {
+            Write-Host 'publish/x64 not found'
+          }
 
       - name: Upload installers to Release
         uses: ncipollo/release-action@v1
