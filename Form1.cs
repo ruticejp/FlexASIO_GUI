@@ -83,7 +83,21 @@ namespace FlexASIOGUI
         public Form1()
         {
             InitializeComponent();
-            
+
+            // Use the same icon as the installer/executable to keep the taskbar icon consistent.
+            try
+            {
+                var iconPath = Path.Combine(AppContext.BaseDirectory, "flexasiogui.ico");
+                if (File.Exists(iconPath))
+                {
+                    this.Icon = new System.Drawing.Icon(iconPath);
+                }
+            }
+            catch
+            {
+                // Ignore failures; fallback to default icon.
+            }
+
             this.Text = $"FlexASIO GUI v{flexasioGuiVersion}";
 
             System.Globalization.CultureInfo customCulture = (System.Globalization.CultureInfo)System.Threading.Thread.CurrentThread.CurrentCulture.Clone();
