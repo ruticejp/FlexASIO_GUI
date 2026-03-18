@@ -105,11 +105,11 @@ namespace FlexASIOGUI
                 return Path.GetDirectoryName(flexASIOExe);
             }
 
-            // 4) Fallback: search under Program Files for FlexASIO.dll (limited search)
-            string flexASIODll = FindFlexASIODllUnder(programFiles);
-            if (flexASIODll != null)
+            // 4) Fallback: search under Program Files for FlexASIO.dll and pick the best candidate.
+            var bestDll = ChooseBestFlexASIODll(programFiles);
+            if (!string.IsNullOrEmpty(bestDll))
             {
-                return Path.GetDirectoryName(Path.GetDirectoryName(flexASIODll));
+                return Path.GetDirectoryName(Path.GetDirectoryName(bestDll));
             }
 
             return null;
@@ -132,24 +132,55 @@ namespace FlexASIOGUI
             return null;
         }
 
-        private static string FindFlexASIODllUnder(string root)
+        private static string ChooseBestFlexASIODll(string installPath)
         {
             try
             {
-                foreach (var path in Directory.EnumerateFiles(root, "FlexASIO.dll", SearchOption.AllDirectories))
-                {
-                    if (path.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return path;
-                    }
-                }
+                var candidates = Directory.GetFiles(installPath, "FlexASIO.dll", SearchOption.AllDirectories);
+                if (candidates.Length == 0)
+                    return null;
+
+                // Prefer x64 candidates and choose the highest file version.
+                var scored = candidates
+                    .Select(p => (path: p, version: GetFileVersion(p), is64: IsDll64Bit(p)))
+                    .Where(x => x.version != null)
+                    .OrderByDescending(x => x.is64)
+                    .ThenByDescending(x => x.version)
+                    .ToArray();
+
+                return scored.Length > 0 ? scored[0].path : candidates[0];
             }
             catch
             {
-                // Ignore any access issues, etc.
+                return null;
             }
+        }
 
-            return null;
+        private static Version GetFileVersion(string path)
+        {
+            try
+            {
+                var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(path);
+                return new Version(info.FileMajorPart, info.FileMinorPart, info.FileBuildPart, info.FilePrivatePart);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool IsDll64Bit(string path)
+        {
+            try
+            {
+                using var stream = File.OpenRead(path);
+                using var peReader = new System.Reflection.PortableExecutable.PEReader(stream);
+                return peReader.PEHeaders.CoffHeader.Machine == System.Reflection.PortableExecutable.Machine.Amd64;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool TryLoadFlexASIODll(out string error, out string dllPathTried)
@@ -169,20 +200,12 @@ namespace FlexASIOGUI
                 return false;
             }
 
-            // Prefer the conventional x64 layout, but allow other layouts by searching under the install path.
-            dllPathTried = Path.Combine(installPath, "x64", "FlexASIO.dll");
-            if (!File.Exists(dllPathTried))
+            // Choose the best candidate from all FlexASIO.dll under the install directory.
+            dllPathTried = ChooseBestFlexASIODll(installPath);
+            if (string.IsNullOrEmpty(dllPathTried))
             {
-                // Fallback: search for FlexASIO.dll anywhere under the install directory.
-                dllPathTried = Directory.GetFiles(installPath, "FlexASIO.dll", SearchOption.AllDirectories)
-                    .FirstOrDefault(p => p.Contains("\\x64\\", StringComparison.OrdinalIgnoreCase))
-                    ?? Directory.GetFiles(installPath, "FlexASIO.dll", SearchOption.AllDirectories).FirstOrDefault();
-
-                if (string.IsNullOrEmpty(dllPathTried))
-                {
-                    error = $"FlexASIO.dll not found under install path: {installPath}";
-                    return false;
-                }
+                error = $"FlexASIO.dll not found under install path: {installPath}";
+                return false;
             }
 
             flexAsioModule = LoadLibraryEx(dllPathTried, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
