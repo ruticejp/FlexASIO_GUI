@@ -28,10 +28,110 @@ namespace FlexASIOGUI
         // Tomlyn library options for TOML serialization/deserialization
         TomlModelOptions tomlModelOptions = new();
 
-        [DllImport(@"C:\Program Files\FlexASIO\x64\FlexASIO.dll")]
-        public static extern int Initialize(string PathName, bool TestMode);
+        // FlexASIO is a separate driver DLL. Rather than hard-coding its path, read the install
+        // location from the installer-written registry key and load it dynamically via LoadLibrary.
+        // This improves portability and avoids relying on a fixed path.
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, uint dwFlags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
         [DllImport(@"kernel32.dll")]
         public static extern uint GetACP();
+
+        private const uint LOAD_WITH_ALTERED_SEARCH_PATH = 0x00000008;
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private delegate int InitializeDelegate(string PathName, bool TestMode);
+
+        private static IntPtr flexAsioModule = IntPtr.Zero;
+        private static InitializeDelegate initializeFunc;
+
+        private static string GetFlexASIOInstallPathFromRegistry()
+        {
+            // Prefer the fork-specific key, but fall back to upstream key if needed.
+            const string forkKey = "SOFTWARE\\Fabrikat\\FlexASIOGUI_Rutice\\Install";
+            const string upstreamKey = "SOFTWARE\\Fabrikat\\FlexASIOGUI\\Install";
+
+            string path = null;
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(forkKey))
+                {
+                    path = key?.GetValue("InstallPath") as string;
+                }
+
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(upstreamKey))
+                    {
+                        path = key?.GetValue("InstallPath") as string;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore registry access failures; we'll fall back to default locations.
+            }
+
+            return string.IsNullOrWhiteSpace(path) ? null : path;
+        }
+
+        private static bool TryLoadFlexASIODll(out string error)
+        {
+            error = null;
+
+            if (flexAsioModule != IntPtr.Zero)
+            {
+                return true;
+            }
+
+            string installPath = GetFlexASIOInstallPathFromRegistry();
+            if (string.IsNullOrWhiteSpace(installPath))
+            {
+                error = "Could not determine FlexASIO install path from registry.";
+                return false;
+            }
+
+            string dllPath = Path.Combine(installPath, "x64", "FlexASIO.dll");
+            if (!File.Exists(dllPath))
+            {
+                error = $"FlexASIO.dll not found at expected location: {dllPath}";
+                return false;
+            }
+
+            flexAsioModule = LoadLibraryEx(dllPath, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
+            if (flexAsioModule == IntPtr.Zero)
+            {
+                error = $"Failed to load FlexASIO.dll (LoadLibraryEx failed; code={Marshal.GetLastWin32Error()}).";
+                return false;
+            }
+
+            IntPtr proc = GetProcAddress(flexAsioModule, "Initialize");
+            if (proc == IntPtr.Zero)
+            {
+                error = "FlexASIO.dll does not export Initialize";
+                return false;
+            }
+
+            initializeFunc = Marshal.GetDelegateForFunctionPointer<InitializeDelegate>(proc);
+            return true;
+        }
+
+        private static int InitializeFlexASIO(string PathName, bool TestMode)
+        {
+            if (!TryLoadFlexASIODll(out string err))
+            {
+                throw new InvalidOperationException(err);
+            }
+
+            return initializeFunc(PathName, TestMode);
+        }
 
         // Direct PortAudio P/Invoke declarations for UTF-8 string handling
         [DllImport("portaudio_x64.dll")]
@@ -119,7 +219,16 @@ namespace FlexASIOGUI
             this.LoadFlexASIOConfig(TOMLPath);
 
             InitDone = true;
-            SetStatusMessage($"FlexASIO GUI for FlexASIO {flexasioVersion} started ({Configuration.VersionString})");
+
+            if (TryLoadFlexASIODll(out string dllError))
+            {
+                SetStatusMessage($"FlexASIO GUI for FlexASIO {flexasioVersion} started ({Configuration.VersionString}); loaded FlexASIO.dll successfully.");
+            }
+            else
+            {
+                SetStatusMessage($"FlexASIO GUI started ({Configuration.VersionString}); failed to load FlexASIO.dll: {dllError}");
+            }
+
             GenerateOutput();
         }
 
