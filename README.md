@@ -8,7 +8,9 @@ It should pick up your existing $Usersprofile/FlexASIO.toml file and read the ba
 
 To run, please make sure you have [.NET Desktop Runtime 10.x (or higher)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) installed.
 
-v0.36 adds a registry key with the install path to HKEY_LOCAL_MACHINE\SOFTWARE\Fabrikat\FlexASIOGUI\Install\Installpath
+v0.36 adds a registry key with the install path to:
+- `HKEY_LOCAL_MACHINE\SOFTWARE\Fabrikat\FlexASIOGUI\Install\InstallPath`
+- `HKEY_LOCAL_MACHINE\SOFTWARE\Fabrikat\FlexASIOGUI_Rutice\Install\InstallPath` (fork-specific)
 
 It also makes most settings optional so that default settings are not overwritten.
 
