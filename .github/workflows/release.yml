@@ -61,6 +61,8 @@ jobs:
           tag: ${{ steps.tags.outputs.tag }}
           name: ${{ steps.tags.outputs.tag }}
           body: ${{ steps.changelog.outputs.body }}
+          allowUpdates: true
+          overwrite: true
 
       - name: List generated artifacts
         shell: pwsh
@@ -83,6 +85,8 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.tags.outputs.tag }}
+          allowUpdates: true
+          overwrite: true
           files: |
             installer/Output/*.exe
             publish/x64/**/*
