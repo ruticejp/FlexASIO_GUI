@@ -2,16 +2,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net6.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <Platforms>AnyCPU;x64</Platforms>
     <ApplicationIcon>installer\flexasiogui.ico</ApplicationIcon>
-
-    <!-- Release versioning -->
-    <Version>0.36.0</Version>
-    <AssemblyVersion>0.36.0.0</AssemblyVersion>
-    <FileVersion>0.36.0.0</FileVersion>
-    <InformationalVersion>0.36.0</InformationalVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -19,19 +13,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
     <PackageReference Include="Tomlyn" Version="0.16.1" />
-  </ItemGroup>
-
-  <!-- Exclude test projects/additional code folders from SDK implicit globbing -->
-  <ItemGroup>
-    <Compile Remove="tests\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="portaudio-sharp">
-      <!-- Use configuration-specific portaudio-sharp build to match Debug/Release builds. -->
-      <HintPath>lib\$(Configuration)\portaudio-sharp.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>lib\Debug\portaudio-sharp.dll</HintPath>
     </Reference>
   </ItemGroup>
 

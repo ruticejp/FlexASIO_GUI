@@ -15,7 +15,7 @@ This document summarizes the key changes and maintenance actions performed by Ru
 - Configured `.csproj` to prevent `.pdb` generation in Release builds.
 - Cleaned up `bin` directory and rebuilt both Debug and Release outputs.
 
-## 2026-03-18 (single-instance-mutex)
+## 2026-03-18
 
 - Added a single-instance guard using a local mutex to prevent multiple GUI windows from running simultaneously.
 - When a second launch is attempted, the existing window is restored and brought to the foreground.
@@ -24,28 +24,4 @@ This document summarizes the key changes and maintenance actions performed by Ru
 
 ---
 
-## 2026-03-18 (upgrade-dotnet10)
-
-> This project is a continuation fork of the original `dechamps/FlexASIO_GUI` repository. The original author is credited and respected; this fork exists to enable ongoing maintenance and improvements when upstream changes were not merged.
-
-- Upgraded project to **.NET 10.0** by updating `FlexASIOGUI.csproj` and adding `global.json`.
-- Updated documentation and installer script to reference .NET 10 build output (`net10.0-windows`).
-- Removed unused package references (`Microsoft.Win32.Registry`, `System.Text.Encoding.CodePages`) to eliminate `NU1510` warnings.
-- Verified successful Debug/Release builds for `net10.0-windows`.
-
-## 2026-03-18 (DLL loading / dependency stability)
-
-- Implemented robust automatic detection of `FlexASIO.dll`:
-  - Reads installer-written registry keys (fork-specific + original)
-  - Falls back to common install paths and searches for `FlexASIO.exe`
-  - Scans install directory for any `FlexASIO.dll` and selects the best candidate (x64 + highest file version)
-- Added runtime dependency inspection:
-  - Detects missing import DLLs and displays them in the status message
-  - Includes actionable hints (e.g., install Visual C++ Redistributable)
-- Improved status bar messaging to show:
-  - which DLL path was tried
-  - why loading failed (including missing exports or missing dependencies)
-
----
-
-*This changelog is maintained by Rutice ([ruticejp](https://github.com/ruticejp)).*
+*This changelog was created and maintained by Rutice ([ruticejp](https://github.com/ruticejp)).*
