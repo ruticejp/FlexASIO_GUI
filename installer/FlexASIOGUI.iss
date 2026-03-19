@@ -1,14 +1,13 @@
 #define MyAppName "FlexASIO GUI"
-#define MyAppVersion "0.36.0"
+#define MyAppVersion "0.36"
 #define MyAppPublisher "https://github.com/ruticejp/FlexASIO_GUI"
 #define MyAppURL ""
 #define MyAppExeName "FlexASIOGUI.exe"
 
 ; This installer is built from the fork maintained by Rutice (https://github.com/ruticejp/FlexASIO_GUI).
-; The original GUI project is by flipswitchingmonkey (https://github.com/flipswitchingmonkey/FlexASIO_GUI),
-; based on FlexASIO by dechamps (https://github.com/dechamps/FlexASIO), and all work is respected and credited.
+; The original project is by dechamps (https://github.com/dechamps/FlexASIO_GUI), and their work is respected and credited.
 
-; Target framework to package
+; Target framework to package (change to net11.0-windows when shipping preview builds)
 #define TargetFramework "net10.0-windows"
 
 [Setup]
@@ -41,9 +40,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ;Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; Use the published output folder created by the CI workflow.
-; This avoids relying on build output paths that are not populated in the Actions runner.
-Source: "..\publish\x64\*"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\bin\Release\{#TargetFramework}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
