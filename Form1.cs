@@ -60,6 +60,8 @@ namespace FlexASIOGUI
         private static string GetFlexASIOInstallPath()
         {
             // 1) Prefer the installer-written fork-specific key.
+            //    The installer writes the GUI install path, but we need the FlexASIO install path.
+            //    If the registry path does not actually contain FlexASIO.dll, ignore it and fall back.
             string[] registryKeys = new[]
             {
                 "SOFTWARE\\Fabrikat\\FlexASIOGUI_Rutice\\Install",
@@ -74,7 +76,11 @@ namespace FlexASIOGUI
                     var value = key?.GetValue("InstallPath") as string;
                     if (!string.IsNullOrWhiteSpace(value))
                     {
-                        return value;
+                        var normalized = NormalizeFlexAsioInstallPath(value);
+                        if (!string.IsNullOrEmpty(normalized))
+                        {
+                            return normalized;
+                        }
                     }
                 }
             }
@@ -111,6 +117,26 @@ namespace FlexASIOGUI
             if (!string.IsNullOrEmpty(bestDll))
             {
                 return Path.GetDirectoryName(Path.GetDirectoryName(bestDll));
+            }
+
+            return null;
+        }
+
+        private static string NormalizeFlexAsioInstallPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return null;
+
+            // Accept a direct path to the DLL.
+            if (File.Exists(path) && string.Equals(Path.GetFileName(path), "FlexASIO.dll", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.GetDirectoryName(path);
+            }
+
+            // Accept a folder containing one or more FlexASIO.dll candidates.
+            if (Directory.Exists(path) && !string.IsNullOrEmpty(ChooseBestFlexASIODll(path)))
+            {
+                return path;
             }
 
             return null;
