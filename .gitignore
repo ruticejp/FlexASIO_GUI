@@ -2,22 +2,6 @@
 obj
 bin
 installer/Output
-publish
-
-# Visual Studio user settings / caches
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
-
-# IDE-specific folders
-.vscode/
-.idea/
-
-# Build logs / temporary files
-*.log
-*.tmp
-
 # Explicitly ignore debug/release .pdb files for extra safety
 bin/Debug/net10.0-windows/FlexASIOGUI.pdb
 bin/Release/net10.0-windows/FlexASIOGUI.pdb
